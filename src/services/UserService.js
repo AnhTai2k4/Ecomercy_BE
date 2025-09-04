@@ -1,31 +1,35 @@
 const User = require("../models/UserModel");
+const bcrypt = require('bcrypt')
 
-const createUser = (props) => {
-  return new Promise((resolve, reject) => {
-    try {
-      const { name, email, password, confirmPassword, phone } = props;
-      User.create({
-        name,
-        email,
-        password,
-        confirmPassword,
-        phone,
-      });
-      resolve((req, res) => {
-        return res.json({
-          name,
-          email,
-          password,
-          confirmPassword,
-          phone,
-        });
-      });
-    } catch (e) {
-      reject(console.log("Loi gi do: ",e));
+const createUser = async ({ name, email, password, confirmPassword, phone }) => {
+  try {
+    // Kiểm tra email tồn tại
+    const isCheck = await User.findOne({ email });
+    if (isCheck) {
+      return {
+        success: false,
+        message: "Email đã tồn tại"
+      };
     }
-  });
+
+    const hashPassword = bcrypt.hashSync(password,10)
+
+    // Tạo user mới
+    const newUser = await User.create({
+      name,
+      email,
+      password: hashPassword,
+      confirmPassword,
+      phone,
+    });
+
+    return {
+      success: true,
+      data: newUser
+    };
+  } catch (e) {
+    throw e;
+  }
 };
 
-module.exports = {
-  createUser,
-};
+module.exports = { createUser };
