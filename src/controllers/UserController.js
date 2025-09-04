@@ -81,4 +81,34 @@ const signinUser = async (req, res) => {
   }
 };
 
-module.exports = { createUser, signinUser };
+const updateUser = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const data = req.body;
+
+    // gọi service
+    const result = await UserService.updateUser({id,data});
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message
+      });
+    }
+
+    // ✅ trả về model vừa tạo
+    return res.status(201).json({
+      success: true,
+      message: "Update user thành công",
+      data: result.data
+    });
+
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message
+    });
+  }
+};
+
+module.exports = { createUser, signinUser, updateUser };

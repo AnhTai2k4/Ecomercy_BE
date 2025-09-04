@@ -85,4 +85,25 @@ const signinUser = async ({ email, password }) => {
   }
 };
 
-module.exports = { createUser, signinUser };
+const updateUser = async ({ id, data }) => {
+  try {
+    // Kiểm tra email tồn tại
+    const isCheck = await User.findOne({ _id: id });
+    if (!isCheck) {
+      return {
+        success: false,
+        message: "Khong ton tai user",
+      };
+    }
+
+    const updateUser = await User.findByIdAndUpdate(id, data, { new: true });
+    return {
+      success: true,
+      data: updateUser,
+    };
+  } catch (e) {
+    throw e;
+  }
+};
+
+module.exports = { createUser, signinUser, updateUser };
