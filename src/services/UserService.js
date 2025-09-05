@@ -106,4 +106,67 @@ const updateUser = async ({ id, data }) => {
   }
 };
 
-module.exports = { createUser, signinUser, updateUser };
+const deleteUser = async (id) => {
+  try {
+    // Kiểm tra email tồn tại
+    const isCheck = await User.findOne({ _id: id });
+    if (!isCheck) {
+      return {
+        success: false,
+        message: "Khong ton tai user",
+      };
+    }
+
+    const deleteUser = await User.findByIdAndDelete(id);
+    return {
+      success: true,
+      data: deleteUser,
+    };
+  } catch (e) {
+    throw e;
+  }
+};
+
+const getAllUser = async () => {
+  try {
+    // Kiểm tra email tồn tại
+    const allUser = await User.find();
+    if (!allUser) {
+      return {
+        success: false,
+        message: "Khong co du lieu all user",
+      };
+    }
+
+    return {
+      success: true,
+      data: allUser,
+    };
+  } catch (e) {
+    throw e;
+  }
+};
+
+const getUser = async (id) => {
+  try {
+    console.log(id)
+    // Kiểm tra email tồn tại
+    const user = await User.findOne({ _id: id });
+    console.log(user)
+    if (!user) {
+      return {
+        success: false,
+        message: "Khong ton tai user",
+      };
+    }
+    return {
+      success: true,
+      data: user,
+    };
+  } catch (e) {
+    throw e;
+  }
+
+};
+
+module.exports = { createUser, signinUser, updateUser,deleteUser,getAllUser,getUser };

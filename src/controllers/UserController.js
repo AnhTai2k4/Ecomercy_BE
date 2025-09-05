@@ -1,3 +1,4 @@
+const { get } = require('mongoose');
 const UserService = require('../services/UserService');
 
 const createUser = async (req, res) => {
@@ -111,4 +112,95 @@ const updateUser = async (req, res) => {
   }
 };
 
-module.exports = { createUser, signinUser, updateUser };
+const deleteUser = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const token= req.headers.token.split(" ")[1];
+    console.log("id bi xoa ne",id)
+    console.log("token ne",token)
+    
+   
+
+    //gọi service
+    const result = await UserService.deleteUser(id);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message
+      });
+    }
+
+    // ✅ trả về model vừa tạo
+    return res.status(201).json({
+      success: true,
+      message: "Delete user thành công",
+      data: result.data
+    });
+
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message
+    });
+  }
+};
+
+const getAllUser = async (req, res) => {
+  try {
+    
+    // gọi service
+    const result = await UserService.getAllUser();
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message
+      });
+    }
+
+    // ✅ trả về model vừa tạo
+    return res.status(201).json({
+      success: true,
+      message: "Nhan all user thành công",
+      data: result.data
+    });
+
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message
+    });
+  }
+};
+
+const getUser = async (req, res) => {
+  try {
+    
+    // gọi service
+    const result = await UserService.getUser(req.params.id);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message
+      });
+    }
+
+    // ✅ trả về model vừa tạo
+    return res.status(201).json({
+      success: true,
+      message: "Nhan user thành công",
+      data: result.data
+    });
+
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message
+    });
+  }
+};
+
+
+module.exports = { createUser, signinUser, updateUser,deleteUser, getAllUser, getUser };
