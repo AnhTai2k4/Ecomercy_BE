@@ -169,4 +169,6 @@ const getUser = async (id) => {
 
 };
 
+
+
 module.exports = { createUser, signinUser, updateUser,deleteUser,getAllUser,getUser };

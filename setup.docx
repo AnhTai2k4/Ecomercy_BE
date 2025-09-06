@@ -21,3 +21,5 @@ app.listen(port, ()=>{
 7. Set up các route/controller/service
 8. Tạo API đăng kí + hashPassword 
 9. Tạo API đăng nhập + JWT
+10. Tạo API update user
+11. Tạo API API delete, getAllUser, getUser, authMiddleware
