@@ -1,4 +1,4 @@
-const { get } = require('mongoose');
+
 const UserService = require('../services/UserService');
 const JwtService = require('../services/JwtService');
 const createUser = async (req, res) => {
