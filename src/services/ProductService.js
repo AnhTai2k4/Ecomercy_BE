@@ -16,27 +16,34 @@ const createProduct = async (product) => {
   }
 };
 
-const getAllProduct = async (page = 1, limit = 5, sort, order, filter) => {
+const getAllProduct = async (page = 1, limit = 5, sort, order, filter = []) => {
   try {
     let products;
-    const field = filter[0];
-    const value = filter[1];
 
-    if (filter) {
-      const label = filter[0];
-      const value  = filter[1];
+    // filter
+    if (Array.isArray(filter) && filter.length === 2) {
+      const [label, value] = filter;
       products = await model
-        .find({ [label]: {'$regex': value} })
+        .find({ [label]: { $regex: value, $options: "i" } }) // thêm $options: "i" để không phân biệt hoa thường
         .skip((page - 1) * limit)
         .limit(limit);
     }
 
+    // sort
     if (sort) {
       products = await model
         .find()
         .skip((page - 1) * limit)
         .limit(limit)
-        .sort({ [sort]: order });
+        .sort({ [sort]: order === "desc" ? -1 : 1 });
+    }
+
+    // default: nếu không filter, không sort
+    if (!products) {
+      products = await model
+        .find()
+        .skip((page - 1) * limit)
+        .limit(limit);
     }
 
     const totalProduct = await model.countDocuments();
@@ -50,10 +57,11 @@ const getAllProduct = async (page = 1, limit = 5, sort, order, filter) => {
   } catch (e) {
     return {
       success: false,
-      message: e.message,
+      message: "Lấy tất cả sản phẩm thất bại: " + e.message,
     };
   }
 };
+
 
 const getProduct = async (id) => {
   try {

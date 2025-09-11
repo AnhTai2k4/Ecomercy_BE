@@ -23,3 +23,4 @@ app.listen(port, ()=>{
 9. Tạo API đăng nhập + JWT
 10. Tạo API update user
 11. Tạo API API delete, getAllUser, getUser, authMiddleware
+12. Tạo API với product ( Tương tự với User)

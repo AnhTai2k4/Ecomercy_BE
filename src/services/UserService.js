@@ -72,14 +72,7 @@ const signinUser = async ({ email, password }) => {
       };
     }
 
-    // // Tạo user mới
-    // const newUser = await User.create({
-    //   name,
-    //   email,
-    //   password: hashPassword,
-    //   confirmPassword,
-    //   phone,
-    // });
+    
   } catch (e) {
     throw e;
   }
