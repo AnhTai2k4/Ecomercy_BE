@@ -4,18 +4,18 @@ const { createAccessToken, createRefreshToken } = require("./JwtService");
 
 const createUser = async ({
   name,
-  email,
+  username,
   password,
   confirmPassword,
   phone,
 }) => {
   try {
-    // Kiểm tra email tồn tại
-    const isCheck = await User.findOne({ email });
+    // Kiểm tra username tồn tại
+    const isCheck = await User.findOne({ username });
     if (isCheck) {
       return {
         success: false,
-        message: "Email đã tồn tại",
+        message: "username đã tồn tại",
       };
     }
 
@@ -24,7 +24,7 @@ const createUser = async ({
     // Tạo user mới
     const newUser = await User.create({
       name,
-      email,
+      username,
       password: hashPassword,
       confirmPassword,
       phone,
@@ -39,10 +39,10 @@ const createUser = async ({
   }
 };
 
-const signinUser = async ({ email, password }) => {
+const signinUser = async ({ username, password }) => {
   try {
-    // Kiểm tra email tồn tại
-    const isCheck = await User.findOne({ email });
+    // Kiểm tra username tồn tại
+    const isCheck = await User.findOne({ username });
     if (!isCheck) {
       return {
         success: false,
@@ -71,16 +71,150 @@ const signinUser = async ({ email, password }) => {
         message: "Mat khau khong hop le",
       };
     }
-
-    
   } catch (e) {
     throw e;
   }
 };
 
+const registOption = async (username) => {
+  const user = await User.findOne({ username });
+  if (user) {
+    return {
+      status: false,
+      message: "Username đã tồn tại",
+    };
+  }
+
+  console.log("user chua ton tai")
+
+  const challenge = Buffer.from(Math.floor.toString(36)).toString("base64");
+
+  const option = {
+    challenge: challenge,
+    rp: {
+      name: "WebAuthn",
+      id: "localhost",
+    },
+    user: {
+      id: Buffer.from(username.toString(36)).toString("base64"),
+      name: username,
+      displayName: username,
+    },
+    pubKeyCredParams: [
+      { type: "public-key", alg: -7 },
+      { type: "public-key", alg: -257 },
+    ],
+    authenticatorSelection: {
+      authenticatorAttachment: "preferred",
+      userVerification: "preferred",
+    },
+    timeout: 60000,
+    attestation: "none",
+  };
+
+  await User.create({ username, challenge });
+
+  if (option) console.log(`tao thanh cong option cho ${username}: `, option);
+  return {
+    status: true,
+    message: "Tao thanh cong option",
+    data: option,
+  };
+};
+
+const registVerify = async ({ username, attResp }) => {
+  try {
+    const user = await User.findOne({ username });
+    if (!user)
+      return {
+        status: false,
+        message: "Username đã tồn tại",
+      };
+    if (attResp && attResp.id) {
+      user.credential = {
+        id: attResp.id,
+        createdAt: new Date(),
+      };
+    }
+
+    user.challenge = null; // Gỡ challenge đăng ký hiện tại
+    await user.save()
+    return {
+      status: true,
+      message: "Verify dang ký thanh cong",
+    };
+  } catch (err) {
+    console.log("Verify option đăng ký lỗi: ", err.message);
+    throw err;
+  }
+};
+
+const loginOption = async (username) => {
+  try {
+    const user = await User.findOne({ username });
+
+    if (!user?.credential?.id) {
+      return res.status(400).json({ error: "User chua dang ky" });
+    }
+
+    const challenge = Buffer.from(Math.random().toString(36)).toString(
+      "base64"
+    );
+
+    const options = {
+      challenge: challenge,
+      allowCredentials: [
+        {
+          id: user.credential.id,
+          type: "public-key",
+        },
+      ],
+      timeout: 60000,
+      userVerification: "preferred",
+    };
+
+    user.challenge = options.challenge;
+    await user.save();
+
+    console.log("Tao thanh cong option cho", username);
+    return options;
+  } catch (error) {
+    console.error("Error in OptionLogin:", error);
+    throw error;
+  }
+};
+const loginVerify = async ({ username, authResp }) => {
+  try {
+    const user = await User.findOne({ username });
+    if (!user) {
+      throw new Error("User khong ton tai");
+    }
+
+    if (authResp && authResp.id) {
+      //Cap nhat thong tin dang nhap
+      user.lastLoginAt = new Date();
+      user.loginCount += 1;
+      user.challenge = null; //Xoa challenge dang nhap sau khi da verify
+      await user.save();
+      console.log("Verify thanh cong cho", username);
+
+      const access_token = createAccessToken({ username, isAdmin: user.isAdmin });
+      console.log("access_token", access_token);
+
+      return {
+        status: "success",
+        access_token,
+      };
+    }
+  } catch (error) {
+    console.error("Error in VerifyLogin:", error);
+    throw error;
+  }
+};
+
 const updateUser = async ({ id, data }) => {
   try {
-    // Kiểm tra email tồn tại
+    // Kiểm tra username tồn tại
     const isCheck = await User.findOne({ _id: id });
     if (!isCheck) {
       return {
@@ -101,7 +235,7 @@ const updateUser = async ({ id, data }) => {
 
 const deleteUser = async (id) => {
   try {
-    // Kiểm tra email tồn tại
+    // Kiểm tra username tồn tại
     const isCheck = await User.findOne({ _id: id });
     if (!isCheck) {
       return {
@@ -122,7 +256,7 @@ const deleteUser = async (id) => {
 
 const getAllUser = async () => {
   try {
-    // Kiểm tra email tồn tại
+    // Kiểm tra username tồn tại
     const allUser = await User.find();
     if (!allUser) {
       return {
@@ -142,10 +276,10 @@ const getAllUser = async () => {
 
 const getUser = async (id) => {
   try {
-    console.log(id)
-    // Kiểm tra email tồn tại
+    console.log(id);
+    // Kiểm tra username tồn tại
     const user = await User.findOne({ _id: id });
-    console.log(user)
+    console.log(user);
     if (!user) {
       return {
         success: false,
@@ -159,9 +293,17 @@ const getUser = async (id) => {
   } catch (e) {
     throw e;
   }
-
 };
 
-
-
-module.exports = { createUser, signinUser, updateUser,deleteUser,getAllUser,getUser };
+module.exports = {
+  createUser,
+  signinUser,
+  registOption,
+  registVerify,
+  loginOption,
+  loginVerify,
+  updateUser,
+  deleteUser,
+  getAllUser,
+  getUser,
+};
