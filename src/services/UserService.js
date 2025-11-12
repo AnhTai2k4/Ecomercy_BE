@@ -15,7 +15,7 @@ const createUser = async ({
     if (isCheck) {
       return {
         success: false,
-        message: "username đã tồn tại",
+        message: "Username đã tồn tại",
       };
     }
 
@@ -85,7 +85,41 @@ const registOption = async (username) => {
     };
   }
 
-  console.log("user chua ton tai")
+  const challenge = Buffer.from(Math.floor.toString(36)).toString("base64");
+
+  const option = {
+    challenge: challenge,
+    rp: {
+      name: "WebAuthn",
+      id: "localhost",
+    },
+    user: {
+      id: Buffer.from(username.toString(36)).toString("base64"),
+      name: username,
+      displayName: username,
+    },
+    pubKeyCredParams: [
+      { type: "public-key", alg: -7 },
+      { type: "public-key", alg: -257 },
+    ],
+    authenticatorSelection: {
+      authenticatorAttachment: "preferred",
+      userVerification: "preferred",
+    },
+    timeout: 60000,
+    attestation: "none",
+  };
+
+  if (option) console.log(`tao thanh cong option cho ${username}: `, option);
+  return {
+    status: true,
+    message: "Tao thanh cong option",
+    data: option,
+  };
+};
+
+const addRegister = async (username) => {
+  const user = await User.findOne({ username });
 
   const challenge = Buffer.from(Math.floor.toString(36)).toString("base64");
 
@@ -112,8 +146,6 @@ const registOption = async (username) => {
     attestation: "none",
   };
 
-  await User.create({ username, challenge });
-
   if (option) console.log(`tao thanh cong option cho ${username}: `, option);
   return {
     status: true,
@@ -124,27 +156,59 @@ const registOption = async (username) => {
 
 const registVerify = async ({ username, attResp }) => {
   try {
-    const user = await User.findOne({ username });
-    if (!user)
-      return {
-        status: false,
-        message: "Username đã tồn tại",
-      };
     if (attResp && attResp.id) {
-      user.credential = {
+      const credential = {
         id: attResp.id,
         createdAt: new Date(),
       };
-    }
 
-    user.challenge = null; // Gỡ challenge đăng ký hiện tại
-    await user.save()
-    return {
-      status: true,
-      message: "Verify dang ký thanh cong",
-    };
+      const user = User.create({
+        username,
+        credential,
+        createdAt: new Date(),
+      });
+      return {
+        status: true,
+        message: "Verify dang ký thanh cong",
+        credential: credential,
+      };
+    }
   } catch (err) {
     console.log("Verify option đăng ký lỗi: ", err.message);
+    throw err;
+  }
+};
+
+const addVerify = async ({ username, attResp }) => {
+  try {
+    console.log("Verify login for", username);
+    const user = await User.findOne({ username });
+
+    if (!user) {
+      console.log("Không tìm thấy user:", username);
+      return {
+        status: false,
+        message: "Không tìm thấy người dùng để lưu credential.",
+      };
+    }
+
+    if (attResp && attResp.id) {
+      user.credential = {
+        id: attResp.id,
+        createAt: new Date(),
+      };
+      await user.save();
+
+      console.log("Lưu credential thành công cho", username);
+    }
+
+    return {
+      status: true,
+      message: "Verify đăng ký thành công",
+      data: user.credential,
+    };
+  } catch (err) {
+    console.log("Verify option đăng ký lỗi:", err.message);
     throw err;
   }
 };
@@ -160,7 +224,8 @@ const loginOption = async (username) => {
     const challenge = Buffer.from(Math.random().toString(36)).toString(
       "base64"
     );
-
+    
+    
     const options = {
       challenge: challenge,
       allowCredentials: [
@@ -168,6 +233,7 @@ const loginOption = async (username) => {
           id: user.credential.id,
           type: "public-key",
         },
+        
       ],
       timeout: 60000,
       userVerification: "preferred",
@@ -194,11 +260,14 @@ const loginVerify = async ({ username, authResp }) => {
       //Cap nhat thong tin dang nhap
       user.lastLoginAt = new Date();
       user.loginCount += 1;
-      user.challenge = null; //Xoa challenge dang nhap sau khi da verify
+      user.challenge = null; //Xoa challenge dang nhap sau khi da verify`
       await user.save();
       console.log("Verify thanh cong cho", username);
 
-      const access_token = createAccessToken({ username, isAdmin: user.isAdmin });
+      const access_token = await createAccessToken({
+        id: user.id,
+        isAdmin: user.isAdmin,
+      });
       console.log("access_token", access_token);
 
       return {
@@ -299,6 +368,8 @@ module.exports = {
   createUser,
   signinUser,
   registOption,
+  addRegister,
+  addVerify,
   registVerify,
   loginOption,
   loginVerify,

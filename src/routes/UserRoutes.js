@@ -6,6 +6,9 @@ const { authMiddleware, authUserMiddleware } = require('../middleware/AuthMiddle
 router.post("/sign-up", UserController.createUser)
 router.post("/sign-in", UserController.signinUser)
 router.post("/register/option", UserController.registOption)
+router.post("/register/add", UserController.addRegister)
+router.post("/register/addVerify", UserController.addVerify)
+
 router.post("/register/verify", UserController.registVerify)
 router.post("/login/option", UserController.loginOption)
 router.post("/login/verify", UserController.loginVerify)

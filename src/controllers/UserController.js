@@ -114,12 +114,42 @@ const registOption = async (req, res) => {
     const result = await UserService.registOption(username);
 
     if (result.status) return res.status(200).json({ option: result.data });
+    else {res.status(400).json({ message: result.message })}
   } catch (err) {
     console.error("Error in RegistOptions:", err);
     return res.status(400).json({ message: err.message });
   }
 };
 
+const addRegister = async (req, res) => {
+  try {
+    const { username } = req.body;
+    console.log(username);
+
+    const result = await UserService.addRegister(username);
+
+    if (result.status) return res.status(200).json({ option: result.data });
+    else {res.status(400).json({ message: result.message })}
+  } catch (err) {
+    console.error("Error in RegistOptions:", err);
+    return res.status(400).json({ message: err.message });
+  }
+};
+
+const addVerify = async (req, res) => {
+  try {
+    const { username, attResp } = req.body;
+    console.log("Verify", username);
+
+    const result = await UserService.addVerify({username,attResp});
+
+    if (result.status) return res.status(200).json({ data: result.data });
+    else {res.status(400).json({ message: result.message })}
+  } catch (err) {
+    console.error("Error in RegistOptions:", err);
+    return res.status(400).json({ message: err.message });
+  }
+};
 const registVerify = async (req, res) => {
   const { username, attResp } = req.body;
   if (!attResp) return res.status(400).json({ message: "Trình duyệt chưa đăng ký key thành công" });
@@ -127,7 +157,7 @@ const registVerify = async (req, res) => {
   if (result.status) {
     return res
       .status(200)
-      .json({ verified: true, message: "Đăng ký thành công" });
+      .json({ verified: true, message: "Đăng ký thành công",credential: result.credential });
   }
 };
 
@@ -152,12 +182,12 @@ const loginVerify = async (req, res) => {
   try {
     const { username, authResp } = req.body;
 
-    const result = await UserService.loginVerify(username, authResp);
+    const result = await UserService.loginVerify({username, authResp});
     console.log(result);
     if (result.status)
-      return res.json({
+      return res.status(200).json({
         verified: true,
-        access_token: result.access_token,
+        Access_token: result.access_token,
       });
     else {
       return res.status(400).json({ error: "Xac thuc that bai" });
@@ -333,6 +363,8 @@ module.exports = {
   signinUser,
   registOption,
   registVerify,
+  addVerify,
+  addRegister,
   loginOption,
   loginVerify,
   updateUser,
