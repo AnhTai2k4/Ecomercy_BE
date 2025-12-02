@@ -99,30 +99,40 @@ const signinUser = async (req, res) => {
 
     // gọi service
     const result = await UserService.signinUser({ username, password });
-    // console.log("result ne", result.data);
-    const { Refresh_token, ...newResult } = result.data;
-    // console.log("Refresh_token", Refresh_token);
 
-    try {
-      res.cookie("Refresh_token", Refresh_token, {
-        httpOnly: true,
-        secure: false, // true khi deploy lên https
-        sameSite: "lax", // phải viết đúng sameSite
-        path: "/",
-      });
-      console.log("Tao cookie thanh cong ne");
-    } catch (err) {
-      console.log("Khong tao duoc cookie ne", err);
-    }
-
+    // Trường hợp username hoặc mật khẩu sai
     if (!result.success) {
       return res.status(400).json({
         success: false,
-        message: result.message,
+        message: result.message || "Sai tài khoản hoặc mật khẩu",
       });
     }
 
-    // ✅ trả về model vừa tạo
+    // Trường hợp user bật 2FA: chỉ xác thực mật khẩu, không trả token
+    if (result.data && result.data.requiresTwoFactor) {
+      return res.status(200).json({
+        success: true,
+        data: result.data, // { requiresTwoFactor, username, message }
+      });
+    }
+
+    // Trường hợp đăng nhập bình thường, có Access_token + Refresh_token
+    const { Refresh_token, ...newResult } = result.data || {};
+
+    if (Refresh_token) {
+      try {
+        res.cookie("Refresh_token", Refresh_token, {
+          httpOnly: true,
+          secure: false, // true khi deploy lên https
+          sameSite: "lax", // phải viết đúng sameSite
+          path: "/",
+        });
+        console.log("Tao cookie thanh cong ne");
+      } catch (err) {
+        console.log("Khong tao duoc cookie ne", err);
+      }
+    }
+
     return res.status(201).json({
       success: true,
       message: "Dang nhap user thành công",

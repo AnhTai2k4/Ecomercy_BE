@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema(
       },
       default: null,
     },
+    // Danh sách thiết bị WebAuthn
     credentials: [
       {
         _id: false,
@@ -26,6 +27,9 @@ const userSchema = new mongoose.Schema(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+    // Chống brute-force / lock tài khoản
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
   },
   {
     timestamps: true,

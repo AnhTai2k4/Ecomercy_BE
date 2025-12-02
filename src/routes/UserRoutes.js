@@ -1,13 +1,25 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit")
 const UserController = require("../controllers/UserController");
 const {
   authMiddleware,
   authUserMiddleware,
 } = require("../middleware/AuthMiddleWare");
 
+const loginLimiter = rateLimit({
+  windowMs: 1000,          // 1 giây
+  max: 10,                 // tối đa 10 request/IP/giây
+  standardHeaders: true,   // trả về RateLimit-* headers
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Bạn gửi quá nhiều yêu cầu, vui lòng thử lại sau giây lát",
+  },
+});
+
 router.post("/sign-up", UserController.createUser);
-router.post("/sign-in", UserController.signinUser);
+router.post("/sign-in", loginLimiter,UserController.signinUser);
 router.post("/check-username", UserController.checkUsername);
 router.post("/register/option", UserController.registOption);
 router.post("/register/add", UserController.addRegister);

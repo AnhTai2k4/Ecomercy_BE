@@ -106,9 +106,26 @@ const signinUser = async ({ username, password }) => {
       };
     }
 
+    // Nếu tài khoản đang bị khóa (lockUntil trong tương lai) thì không cho thử tiếp
+    if (isCheck.lockUntil && isCheck.lockUntil > new Date()) {
+      const remainingMs = isCheck.lockUntil.getTime() - Date.now();
+      const remainingSec = Math.ceil(remainingMs / 1000);
+      return {
+        success: false,
+        message: `Tài khoản đang bị khóa, vui lòng thử lại sau ${remainingSec} giây`,
+      };
+    }
+
     const comparePassword = await bcrypt.compare(password, isCheck.password);
     console.log(comparePassword);
     if (comparePassword) {
+      // Reset đếm sai & mở khóa nếu đăng nhập đúng
+      if (isCheck.failedLoginAttempts || isCheck.lockUntil) {
+        isCheck.failedLoginAttempts = 0;
+        isCheck.lockUntil = null;
+        await isCheck.save();
+      }
+
       // Nếu bật 2FA, chỉ xác thực mật khẩu, không trả token (cần xác thực WebAuthn ở bước 2)
       if (isCheck.isTwoFactorAuth) {
         return {
@@ -135,9 +152,34 @@ const signinUser = async ({ username, password }) => {
         data: { Access_token, Refresh_token },
       };
     } else {
+      // Sai mật khẩu: tăng bộ đếm và quyết định thời gian khóa giống iPhone
+      const currentAttempts = isCheck.failedLoginAttempts || 0;
+      const newAttempts = currentAttempts + 1;
+      isCheck.failedLoginAttempts = newAttempts;
+
+      let lockMinutes = 0;
+      if (newAttempts >= 10) {
+        // Sai >= 10 lần liên tiếp -> khóa 5 phút
+        lockMinutes = 5;
+      } else if (newAttempts >= 3) {
+        // Sai >= 3 lần liên tiếp -> khóa 1 phút
+        lockMinutes = 1;
+      }
+
+      if (lockMinutes > 0) {
+        isCheck.lockUntil = new Date(Date.now() + lockMinutes * 60 * 1000);
+      } else {
+        isCheck.lockUntil = null;
+      }
+
+      await isCheck.save();
+
       return {
         success: false,
-        message: "Mat khau khong hop le",
+        message:
+          lockMinutes > 0
+            ? `Sai mật khẩu quá nhiều lần. Tài khoản bị khóa trong ${lockMinutes} phút`
+            : "Mat khau khong hop le",
       };
     }
   } catch (e) {

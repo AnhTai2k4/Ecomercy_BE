@@ -5,7 +5,7 @@ const routes = require("./routes");
 const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
-
+const rateLimit = require("express-rate-limit")
 dotenv.config();
 const app = express();
 const port = process.env.PORT;
