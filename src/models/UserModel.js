@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     accessToken: { type: String, required: false },
     refreshToken: { type: String, required: false },
     challenge: { type: String, default: null },
+    isTwoFactorAuth:{type: Boolean, default: false},
     credential: {
       type: {
         id: String,
@@ -17,6 +18,14 @@ const userSchema = new mongoose.Schema(
       },
       default: null,
     },
+    credentials: [
+      {
+        _id: false,
+        credentialId: { type: String },
+        name: { type: String, default: "Thiết bị WebAuthn" },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,

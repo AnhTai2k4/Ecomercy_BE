@@ -25,7 +25,7 @@ app.get("/", (req, res) => {
 
 mongoose
   .connect(process.env.MONGO_DB, {
-    serverSelectionTimeoutMS: 30000, // 5s
+    serverSelectionTimeoutMS: 50000, // 5s
   })
   .then(() => {
     console.log("Connect Successful");

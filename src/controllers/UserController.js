@@ -51,6 +51,40 @@ const createUser = async (req, res) => {
   }
 };
 
+//Check username
+const checkUsername = async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    // validate input
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu dữ liệu đầu vào",
+      });
+    }
+
+    // gọi service
+    const result = await UserService.checkUsername({ username });
+   
+    if (!result.success) {
+      return res.status(400).json({
+        data: result.data
+      });
+    }
+
+    // ✅ trả về thông tin username và credentials
+    return res.status(200).json({
+      data: result.data,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message,
+    });
+  }
+};
+
 const signinUser = async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -184,16 +218,63 @@ const loginVerify = async (req, res) => {
 
     const result = await UserService.loginVerify({username, authResp});
     console.log(result);
-    if (result.status)
+    if (result.status) {
+      const { Refresh_token, ...newResult } = result;
+      
+      try {
+        res.cookie("Refresh_token", Refresh_token, {
+          httpOnly: true,
+          secure: false,
+          sameSite: "lax",
+          path: "/",
+        });
+      } catch (err) {
+        console.log("Khong tao duoc cookie ne", err);
+      }
+      
       return res.status(200).json({
         verified: true,
-        Access_token: result.access_token,
+        Access_token: newResult.Access_token,
       });
-    else {
+    } else {
       return res.status(400).json({ error: "Xac thuc that bai" });
     }
   } catch (error) {
     console.error("Error in RegistOptions:", error);
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+// Xác thực bước 2 cho 2FA (sau khi đã xác thực mật khẩu)
+const loginVerifyTwoFactor = async (req, res) => {
+  try {
+    const { username, authResp } = req.body;
+
+    const result = await UserService.loginVerifyTwoFactor({username, authResp});
+    console.log(result);
+    if (result.status) {
+      const { Refresh_token, ...newResult } = result;
+      
+      try {
+        res.cookie("Refresh_token", Refresh_token, {
+          httpOnly: true,
+          secure: false,
+          sameSite: "lax",
+          path: "/",
+        });
+      } catch (err) {
+        console.log("Khong tao duoc cookie ne", err);
+      }
+      
+      return res.status(200).json({
+        verified: true,
+        Access_token: newResult.Access_token,
+      });
+    } else {
+      return res.status(400).json({ error: "Xac thuc that bai" });
+    }
+  } catch (error) {
+    console.error("Error in loginVerifyTwoFactor:", error);
     return res.status(400).json({ error: error.message });
   }
 };
@@ -284,6 +365,103 @@ const getAllUser = async (req, res) => {
   }
 };
 
+const getWebauthnCredentials = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const result = await UserService.getWebauthnCredentials(userId);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Lấy danh sách thiết bị WebAuthn thành công",
+      data: result.data,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message,
+    });
+  }
+};
+
+const removeWebauthnCredential = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    // Decode credentialId từ URL (FE đã encode)
+    const credentialId = decodeURIComponent(req.params.credentialId);
+
+    const result = await UserService.removeWebauthnCredential({
+      userId,
+      credentialId,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Xóa thiết bị WebAuthn thành công",
+      data: result.data,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message,
+    });
+  }
+};
+
+const renameWebauthnCredential = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    // Decode credentialId từ URL (FE đã encode)
+    const credentialId = decodeURIComponent(req.params.credentialId);
+    const { name } = req.body;
+
+    if (!name || name.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Tên thiết bị không được để trống",
+      });
+    }
+
+    const result = await UserService.renameWebauthnCredential({
+      userId,
+      credentialId,
+      name: name.trim(),
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Đổi tên thiết bị WebAuthn thành công",
+      data: result.data,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      message: e.message,
+    });
+  }
+};
+
 const getUser = async (req, res) => {
   try {
     // gọi service
@@ -360,6 +538,7 @@ const logoutUser = async (req, res) => {
 
 module.exports = {
   createUser,
+  checkUsername,
   signinUser,
   registOption,
   registVerify,
@@ -367,10 +546,14 @@ module.exports = {
   addRegister,
   loginOption,
   loginVerify,
+  loginVerifyTwoFactor,
   updateUser,
   deleteUser,
   getAllUser,
   getUser,
   refreshToken,
   logoutUser,
+  getWebauthnCredentials,
+  removeWebauthnCredential,
+  renameWebauthnCredential,
 };

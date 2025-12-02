@@ -2,6 +2,32 @@ const User = require("../models/UserModel");
 const bcrypt = require("bcrypt");
 const { createAccessToken, createRefreshToken } = require("./JwtService");
 
+const ensureCredentialArray = async (user) => {
+  if (!user) return null;
+
+  if (
+    (!user.credentials || user.credentials.length === 0) &&
+    user.credential &&
+    user.credential.id
+  ) {
+    user.credentials = [
+      {
+        credentialId: user.credential.id,
+        name: "Thiết bị mặc định",
+        createdAt: user.credential.createAt || new Date(),
+      },
+    ];
+    user.credential = null;
+    await user.save();
+  }
+
+  if (!user.credentials) {
+    user.credentials = [];
+  }
+
+  return user;
+};
+
 const createUser = async ({
   name,
   username,
@@ -28,6 +54,7 @@ const createUser = async ({
       password: hashPassword,
       confirmPassword,
       phone,
+      isTwoFactorAuth: false, // Mặc định tắt 2FA khi tạo user mới
     });
 
     return {
@@ -38,6 +65,35 @@ const createUser = async ({
     throw e;
   }
 };
+
+const checkUsername = async ({ username }) => {
+  try {
+    // Kiểm tra username tồn tại
+    const isCheck = await User.findOne({ username });
+    if (!isCheck) {
+      return {
+        success: false,
+        data: "Username khong hop le",
+      };
+    }
+
+    // Kiểm tra xem user có WebAuthn credentials không
+    const hasCredentials = isCheck.credentials && isCheck.credentials.length > 0;
+
+    return {
+      success: true,
+      data: {
+        message: "Username hop le",
+        hasWebAuthnCredentials: hasCredentials,
+        isTwoFactorAuth: isCheck.isTwoFactorAuth || false,
+      },
+    };
+
+  } catch (e) {
+    throw e;
+  }
+};
+
 
 const signinUser = async ({ username, password }) => {
   try {
@@ -53,6 +109,19 @@ const signinUser = async ({ username, password }) => {
     const comparePassword = await bcrypt.compare(password, isCheck.password);
     console.log(comparePassword);
     if (comparePassword) {
+      // Nếu bật 2FA, chỉ xác thực mật khẩu, không trả token (cần xác thực WebAuthn ở bước 2)
+      if (isCheck.isTwoFactorAuth) {
+        return {
+          success: true,
+          data: { 
+            requiresTwoFactor: true,
+            username: username,
+            message: "Mật khẩu đúng, vui lòng xác thực WebAuthn"
+          },
+        };
+      }
+      
+      // Nếu không bật 2FA, trả token như bình thường
       const Access_token = await createAccessToken({
         id: isCheck._id,
         isAdmin: isCheck.isAdmin,
@@ -158,19 +227,27 @@ const registVerify = async ({ username, attResp }) => {
   try {
     if (attResp && attResp.id) {
       const credential = {
-        id: attResp.id,
+        credentialId: attResp.id,
+        name: "Thiết bị WebAuthn",
         createdAt: new Date(),
       };
 
-      const user = User.create({
+      const legacyCredential = {
+        id: attResp.id,
+        createAt: new Date(),
+      };
+
+      const user = await User.create({
         username,
-        credential,
+        credential: legacyCredential,
+        credentials: [credential],
         createdAt: new Date(),
       });
+
       return {
         status: true,
-        message: "Verify dang ký thanh cong",
-        credential: credential,
+        message: "Verify đăng ký thành công",
+        credential,
       };
     }
   } catch (err) {
@@ -179,10 +256,11 @@ const registVerify = async ({ username, attResp }) => {
   }
 };
 
-const addVerify = async ({ username, attResp }) => {
+const addVerify = async ({ username, attResp, deviceName }) => {
   try {
     console.log("Verify login for", username);
     const user = await User.findOne({ username });
+    await ensureCredentialArray(user);
 
     if (!user) {
       console.log("Không tìm thấy user:", username);
@@ -193,10 +271,27 @@ const addVerify = async ({ username, attResp }) => {
     }
 
     if (attResp && attResp.id) {
-      user.credential = {
-        id: attResp.id,
-        createAt: new Date(),
+      const existed = user.credentials.some(
+        (credential) => credential.credentialId === attResp.id
+      );
+
+      if (existed) {
+        return {
+          status: false,
+          message: "Thiết bị đã tồn tại",
+          data: user.credentials,
+        };
+      }
+
+      const newCredential = {
+        credentialId: attResp.id,
+        name:
+          deviceName ||
+          `Thiết bị #${(user.credentials?.length || 0) + 1}`,
+        createdAt: new Date(),
       };
+
+      user.credentials.push(newCredential);
       await user.save();
 
       console.log("Lưu credential thành công cho", username);
@@ -205,7 +300,7 @@ const addVerify = async ({ username, attResp }) => {
     return {
       status: true,
       message: "Verify đăng ký thành công",
-      data: user.credential,
+      data: user.credentials,
     };
   } catch (err) {
     console.log("Verify option đăng ký lỗi:", err.message);
@@ -216,25 +311,26 @@ const addVerify = async ({ username, attResp }) => {
 const loginOption = async (username) => {
   try {
     const user = await User.findOne({ username });
+    await ensureCredentialArray(user);
 
-    if (!user?.credential?.id) {
-      return res.status(400).json({ error: "User chua dang ky" });
+    if (!user) {
+      throw new Error("User không tồn tại");
+    }
+
+    if (!user.credentials || user.credentials.length === 0) {
+      throw new Error("User chưa đăng ký thiết bị WebAuthn");
     }
 
     const challenge = Buffer.from(Math.random().toString(36)).toString(
       "base64"
     );
-    
-    
+
     const options = {
       challenge: challenge,
-      allowCredentials: [
-        {
-          id: user.credential.id,
-          type: "public-key",
-        },
-        
-      ],
+      allowCredentials: user.credentials.map((credential) => ({
+        id: credential.credentialId,
+        type: "public-key",
+      })),
       timeout: 60000,
       userVerification: "preferred",
     };
@@ -252,6 +348,7 @@ const loginOption = async (username) => {
 const loginVerify = async ({ username, authResp }) => {
   try {
     const user = await User.findOne({ username });
+    await ensureCredentialArray(user);
     if (!user) {
       throw new Error("User khong ton tai");
     }
@@ -268,15 +365,146 @@ const loginVerify = async ({ username, authResp }) => {
         id: user.id,
         isAdmin: user.isAdmin,
       });
+      const Refresh_token = await createRefreshToken({
+        id: user.id,
+        isAdmin: user.isAdmin,
+      });
       console.log("access_token", access_token);
 
       return {
         status: "success",
-        access_token,
+        Access_token: access_token,
+        Refresh_token: Refresh_token,
       };
     }
   } catch (error) {
     console.error("Error in VerifyLogin:", error);
+    throw error;
+  }
+};
+
+// Xác thực bước 2 cho 2FA (sau khi đã xác thực mật khẩu)
+const loginVerifyTwoFactor = async ({ username, authResp }) => {
+  try {
+    const user = await User.findOne({ username });
+    await ensureCredentialArray(user);
+    if (!user) {
+      throw new Error("User khong ton tai");
+    }
+
+    // Kiểm tra user có bật 2FA không
+    if (!user.isTwoFactorAuth) {
+      throw new Error("User chua bat 2FA");
+    }
+
+    if (authResp && authResp.id) {
+      //Cap nhat thong tin dang nhap
+      user.lastLoginAt = new Date();
+      user.loginCount += 1;
+      user.challenge = null; //Xoa challenge dang nhap sau khi da verify`
+      await user.save();
+      console.log("Verify 2FA thanh cong cho", username);
+
+      const access_token = await createAccessToken({
+        id: user.id,
+        isAdmin: user.isAdmin,
+      });
+      const Refresh_token = await createRefreshToken({
+        id: user.id,
+        isAdmin: user.isAdmin,
+      });
+      console.log("access_token", access_token);
+
+      return {
+        status: "success",
+        Access_token: access_token,
+        Refresh_token: Refresh_token,
+      };
+    }
+  } catch (error) {
+    console.error("Error in VerifyLoginTwoFactor:", error);
+    throw error;
+  }
+};
+
+const getWebauthnCredentials = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    await ensureCredentialArray(user);
+
+    if (!user) {
+      return {
+        success: false,
+        message: "Không tìm thấy người dùng",
+      };
+    }
+
+    return {
+      success: true,
+      data: user.credentials || [],
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+const removeWebauthnCredential = async ({ userId, credentialId }) => {
+  try {
+    const user = await User.findById(userId);
+    await ensureCredentialArray(user);
+
+    if (!user) {
+      return {
+        success: false,
+        message: "Không tìm thấy người dùng",
+      };
+    }
+
+    user.credentials = (user.credentials || []).filter(
+      (credential) => credential.credentialId !== credentialId
+    );
+    await user.save();
+
+    return {
+      success: true,
+      data: user.credentials,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+const renameWebauthnCredential = async ({ userId, credentialId, name }) => {
+  try {
+    const user = await User.findById(userId);
+    await ensureCredentialArray(user);
+
+    if (!user) {
+      return {
+        success: false,
+        message: "Không tìm thấy người dùng",
+      };
+    }
+
+    const credential = (user.credentials || []).find(
+      (item) => item.credentialId === credentialId
+    );
+
+    if (!credential) {
+      return {
+        success: false,
+        message: "Không tìm thấy thiết bị",
+      };
+    }
+
+    credential.name = name;
+    await user.save();
+
+    return {
+      success: true,
+      data: user.credentials,
+    };
+  } catch (error) {
     throw error;
   }
 };
@@ -366,6 +594,7 @@ const getUser = async (id) => {
 
 module.exports = {
   createUser,
+  checkUsername,
   signinUser,
   registOption,
   addRegister,
@@ -373,6 +602,10 @@ module.exports = {
   registVerify,
   loginOption,
   loginVerify,
+  loginVerifyTwoFactor,
+  getWebauthnCredentials,
+  removeWebauthnCredential,
+  renameWebauthnCredential,
   updateUser,
   deleteUser,
   getAllUser,
