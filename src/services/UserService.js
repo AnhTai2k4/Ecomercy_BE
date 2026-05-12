@@ -2,35 +2,36 @@ const User = require("../models/UserModel");
 const bcrypt = require("bcrypt");
 const { createAccessToken, createRefreshToken } = require("./JwtService");
 
-const ensureCredentialArray = async (user) => {
-  if (!user) return null;
+// const ensureCredentialArray = async (user) => {
+//   if (!user) return null;
 
-  if (
-    (!user.credentials || user.credentials.length === 0) &&
-    user.credential &&
-    user.credential.id
-  ) {
-    user.credentials = [
-      {
-        credentialId: user.credential.id,
-        name: "Thiết bị mặc định",
-        createdAt: user.credential.createAt || new Date(),
-      },
-    ];
-    user.credential = null;
-    await user.save();
-  }
+//   if (
+//     (!user.credentials || user.credentials.length === 0) &&
+//     user.credential &&
+//     user.credential.id
+//   ) {
+//     user.credentials = [
+//       {
+//         credentialId: user.credential.id,
+//         name: "Thiết bị mặc định",
+//         createdAt: user.credential.createAt || new Date(),
+//       },
+//     ];
+//     user.credential = null;
+//     await user.save();
+//   }
 
-  if (!user.credentials) {
-    user.credentials = [];
-  }
+//   if (!user.credentials) {
+//     user.credentials = [];
+//   }
 
-  return user;
-};
+//   return user;
+// };
 
 const createUser = async ({
   name,
   username,
+  email,
   password,
   confirmPassword,
   phone,
@@ -51,10 +52,10 @@ const createUser = async ({
     const newUser = await User.create({
       name,
       username,
+      email,
       password: hashPassword,
       confirmPassword,
       phone,
-      isTwoFactorAuth: false, // Mặc định tắt 2FA khi tạo user mới
     });
 
     return {
@@ -66,33 +67,33 @@ const createUser = async ({
   }
 };
 
-const checkUsername = async ({ username }) => {
-  try {
-    // Kiểm tra username tồn tại
-    const isCheck = await User.findOne({ username });
-    if (!isCheck) {
-      return {
-        success: false,
-        data: "Username khong hop le",
-      };
-    }
+// const checkUsername = async ({ username }) => {
+//   try {
+//     // Kiểm tra username tồn tại
+//     const isCheck = await User.findOne({ username });
+//     if (!isCheck) {
+//       return {
+//         success: false,
+//         data: "Username khong hop le",
+//       };
+//     }
 
-    // Kiểm tra xem user có WebAuthn credentials không
-    const hasCredentials = isCheck.credentials && isCheck.credentials.length > 0;
+//     // Kiểm tra xem user có WebAuthn credentials không
+//     const hasCredentials = isCheck.credentials && isCheck.credentials.length > 0;
 
-    return {
-      success: true,
-      data: {
-        message: "Username hop le",
-        hasWebAuthnCredentials: hasCredentials,
-        isTwoFactorAuth: isCheck.isTwoFactorAuth || false,
-      },
-    };
+//     return {
+//       success: true,
+//       data: {
+//         message: "Username hop le",
+//         hasWebAuthnCredentials: hasCredentials,
+//         isTwoFactorAuth: isCheck.isTwoFactorAuth || false,
+//       },
+//     };
 
-  } catch (e) {
-    throw e;
-  }
-};
+//   } catch (e) {
+//     throw e;
+//   }
+// };
 
 
 const signinUser = async ({ username, password }) => {
@@ -142,14 +143,23 @@ const signinUser = async ({ username, password }) => {
       const Access_token = await createAccessToken({
         id: isCheck._id,
         isAdmin: isCheck.isAdmin,
+        name: isCheck.name,
+        username: isCheck.username,
+        email: isCheck.email,
+        phone: isCheck.phone,
+        
       });
       const Refresh_token = await createRefreshToken({
         id: isCheck._id,
         isAdmin: isCheck.isAdmin,
+        name: isCheck.name,
+        username: isCheck.username,
+        email: isCheck.email,
+        phone: isCheck.phone,
       });
       return {
         success: true,
-        data: { Access_token, Refresh_token },
+        data: { userData: isCheck,Access_token, Refresh_token },
       };
     } else {
       // Sai mật khẩu: tăng bộ đếm và quyết định thời gian khóa giống iPhone
@@ -187,369 +197,371 @@ const signinUser = async ({ username, password }) => {
   }
 };
 
-const registOption = async (username) => {
-  const user = await User.findOne({ username });
-  if (user) {
-    return {
-      status: false,
-      message: "Username đã tồn tại",
-    };
-  }
+// const registOption = async (username) => {
+//   const user = await User.findOne({ username });
+//   if (user) {
+//     return {
+//       status: false,
+//       message: "Username đã tồn tại",
+//     };
+//   }
 
-  const challenge = Buffer.from(Math.floor.toString(36)).toString("base64");
+//   const challenge = Buffer.from(Math.floor.toString(36)).toString("base64");
 
-  const option = {
-    challenge: challenge,
-    rp: {
-      name: "WebAuthn",
-      id: "localhost",
-    },
-    user: {
-      id: Buffer.from(username.toString(36)).toString("base64"),
-      name: username,
-      displayName: username,
-    },
-    pubKeyCredParams: [
-      { type: "public-key", alg: -7 },
-      { type: "public-key", alg: -257 },
-    ],
-    authenticatorSelection: {
-      authenticatorAttachment: "preferred",
-      userVerification: "preferred",
-    },
-    timeout: 60000,
-    attestation: "none",
-  };
+//   const option = {
+//     challenge: challenge,
+//     rp: {
+//       name: "WebAuthn",
+//       id: "localhost",
+//     },
+//     user: {
+//       id: Buffer.from(username.toString(36)).toString("base64"),
+//       name: username,
+//       displayName: username,
+//     },
+//     pubKeyCredParams: [
+//       { type: "public-key", alg: -7 },
+//       { type: "public-key", alg: -257 },
+//     ],
+//     authenticatorSelection: {
+//       authenticatorAttachment: "preferred",
+//       userVerification: "preferred",
+//     },
+//     timeout: 60000,
+//     attestation: "none",
+//   };
 
-  if (option) console.log(`tao thanh cong option cho ${username}: `, option);
-  return {
-    status: true,
-    message: "Tao thanh cong option",
-    data: option,
-  };
-};
+//   if (option) console.log(`tao thanh cong option cho ${username}: `, option);
+//   return {
+//     status: true,
+//     message: "Tao thanh cong option",
+//     data: option,
+//   };
+// };
 
-const addRegister = async (username) => {
-  const user = await User.findOne({ username });
+// const addRegister = async (username) => {
+//   const user = await User.findOne({ username });
 
-  const challenge = Buffer.from(Math.floor.toString(36)).toString("base64");
+//   const challenge = Buffer.from(Math.floor.toString(36)).toString("base64");
 
-  const option = {
-    challenge: challenge,
-    rp: {
-      name: "WebAuthn",
-      id: "localhost",
-    },
-    user: {
-      id: Buffer.from(username.toString(36)).toString("base64"),
-      name: username,
-      displayName: username,
-    },
-    pubKeyCredParams: [
-      { type: "public-key", alg: -7 },
-      { type: "public-key", alg: -257 },
-    ],
-    authenticatorSelection: {
-      authenticatorAttachment: "preferred",
-      userVerification: "preferred",
-    },
-    timeout: 60000,
-    attestation: "none",
-  };
+//   const option = {
+//     challenge: challenge,
+//     rp: {
+//       name: "WebAuthn",
+//       id: "localhost",
+//     },
+//     user: {
+//       id: Buffer.from(username.toString(36)).toString("base64"),
+//       name: username,
+//       displayName: username,
+//     },
+//     pubKeyCredParams: [
+//       { type: "public-key", alg: -7 },
+//       { type: "public-key", alg: -257 },
+//     ],
+//     authenticatorSelection: {
+//       authenticatorAttachment: "preferred",
+//       userVerification: "preferred",
+//     },
+//     timeout: 60000,
+//     attestation: "none",
+//   };
 
-  if (option) console.log(`tao thanh cong option cho ${username}: `, option);
-  return {
-    status: true,
-    message: "Tao thanh cong option",
-    data: option,
-  };
-};
+//   if (option) console.log(`tao thanh cong option cho ${username}: `, option);
+//   return {
+//     status: true,
+//     message: "Tao thanh cong option",
+//     data: option,
+//   };
+// };
 
-const registVerify = async ({ username, attResp }) => {
-  try {
-    if (attResp && attResp.id) {
-      const credential = {
-        credentialId: attResp.id,
-        name: "Thiết bị WebAuthn",
-        createdAt: new Date(),
-      };
+// const registVerify = async ({ username, attResp }) => {
+//   try {
+//     if (attResp && attResp.id) {
+//       const credential = {
+//         credentialId: attResp.id,
+//         name: "Thiết bị WebAuthn",
+//         createdAt: new Date(),
+//       };
 
-      const legacyCredential = {
-        id: attResp.id,
-        createAt: new Date(),
-      };
+//       const legacyCredential = {
+//         id: attResp.id,
+//         createAt: new Date(),
+//       };
 
-      const user = await User.create({
-        username,
-        credential: legacyCredential,
-        credentials: [credential],
-        createdAt: new Date(),
-      });
+//       const user = await User.create({
+//         username,
+//         credential: legacyCredential,
+//         credentials: [credential],
+//         createdAt: new Date(),
+//       });
 
-      return {
-        status: true,
-        message: "Verify đăng ký thành công",
-        credential,
-      };
-    }
-  } catch (err) {
-    console.log("Verify option đăng ký lỗi: ", err.message);
-    throw err;
-  }
-};
+//       return {
+//         status: true,
+//         message: "Verify đăng ký thành công",
+//         credential,
+//       };
+//     }
+//   } catch (err) {
+//     console.log("Verify option đăng ký lỗi: ", err.message);
+//     throw err;
+//   }
+// };
 
-const addVerify = async ({ username, attResp, deviceName }) => {
-  try {
-    console.log("Verify login for", username);
-    const user = await User.findOne({ username });
-    await ensureCredentialArray(user);
+// const addVerify = async ({ username, attResp, deviceName }) => {
+//   try {
+//     console.log("Verify login for", username);
+//     const user = await User.findOne({ username });
+//     await ensureCredentialArray(user);
 
-    if (!user) {
-      console.log("Không tìm thấy user:", username);
-      return {
-        status: false,
-        message: "Không tìm thấy người dùng để lưu credential.",
-      };
-    }
+//     if (!user) {
+//       console.log("Không tìm thấy user:", username);
+//       return {
+//         status: false,
+//         message: "Không tìm thấy người dùng để lưu credential.",
+//       };
+//     }
 
-    if (attResp && attResp.id) {
-      const existed = user.credentials.some(
-        (credential) => credential.credentialId === attResp.id
-      );
+//     if (attResp && attResp.id) {
+//       const existed = user.credentials.some(
+//         (credential) => credential.credentialId === attResp.id
+//       );
 
-      if (existed) {
-        return {
-          status: false,
-          message: "Thiết bị đã tồn tại",
-          data: user.credentials,
-        };
-      }
+//       if (existed) {
+//         return {
+//           status: false,
+//           message: "Thiết bị đã tồn tại",
+//           data: user.credentials,
+//         };
+//       }
 
-      const newCredential = {
-        credentialId: attResp.id,
-        name:
-          deviceName ||
-          `Thiết bị #${(user.credentials?.length || 0) + 1}`,
-        createdAt: new Date(),
-      };
+//       const newCredential = {
+//         credentialId: attResp.id,
+//         name:
+//           deviceName ||
+//           `Thiết bị #${(user.credentials?.length || 0) + 1}`,
+//         createdAt: new Date(),
+//       };
 
-      user.credentials.push(newCredential);
-      await user.save();
+//       user.credentials.push(newCredential);
+//       await user.save();
 
-      console.log("Lưu credential thành công cho", username);
-    }
+//       console.log("Lưu credential thành công cho", username);
+//     }
 
-    return {
-      status: true,
-      message: "Verify đăng ký thành công",
-      data: user.credentials,
-    };
-  } catch (err) {
-    console.log("Verify option đăng ký lỗi:", err.message);
-    throw err;
-  }
-};
+//     return {
+//       status: true,
+//       message: "Verify đăng ký thành công",
+//       data: user.credentials,
+//     };
+//   } catch (err) {
+//     console.log("Verify option đăng ký lỗi:", err.message);
+//     throw err;
+//   }
+// };
 
-const loginOption = async (username) => {
-  try {
-    const user = await User.findOne({ username });
-    await ensureCredentialArray(user);
+// const loginOption = async (username) => {
+//   try {
+//     const user = await User.findOne({ username });
+//     await ensureCredentialArray(user);
 
-    if (!user) {
-      throw new Error("User không tồn tại");
-    }
+//     if (!user) {
+//       throw new Error("User không tồn tại");
+//     }
 
-    if (!user.credentials || user.credentials.length === 0) {
-      throw new Error("User chưa đăng ký thiết bị WebAuthn");
-    }
+//     if (!user.credentials || user.credentials.length === 0) {
+//       throw new Error("User chưa đăng ký thiết bị WebAuthn");
+//     }
 
-    const challenge = Buffer.from(Math.random().toString(36)).toString(
-      "base64"
-    );
+//     const challenge = Buffer.from(Math.random().toString(36)).toString(
+//       "base64"
+//     );
 
-    const options = {
-      challenge: challenge,
-      allowCredentials: user.credentials.map((credential) => ({
-        id: credential.credentialId,
-        type: "public-key",
-      })),
-      timeout: 60000,
-      userVerification: "preferred",
-    };
+//     const options = {
+//       challenge: challenge,
+//       allowCredentials: user.credentials.map((credential) => ({
+//         id: credential.credentialId,
+//         type: "public-key",
+//       })),
+//       timeout: 60000,
+//       userVerification: "preferred",
+//     };
 
-    user.challenge = options.challenge;
-    await user.save();
+//     user.challenge = options.challenge;
+//     await user.save();
 
-    console.log("Tao thanh cong option cho", username);
-    return options;
-  } catch (error) {
-    console.error("Error in OptionLogin:", error);
-    throw error;
-  }
-};
-const loginVerify = async ({ username, authResp }) => {
-  try {
-    const user = await User.findOne({ username });
-    await ensureCredentialArray(user);
-    if (!user) {
-      throw new Error("User khong ton tai");
-    }
+//     console.log("Tao thanh cong option cho", username);
+//     return options;
+//   } catch (error) {
+//     console.error("Error in OptionLogin:", error);
+//     throw error;
+//   }
+// };
+// const loginVerify = async ({ username, authResp }) => {
+//   try {
+//     const user = await User.findOne({ username });
+//     await ensureCredentialArray(user);
+//     if (!user) {
+//       throw new Error("User khong ton tai");
+//     }
 
-    if (authResp && authResp.id) {
-      //Cap nhat thong tin dang nhap
-      user.lastLoginAt = new Date();
-      user.loginCount += 1;
-      user.challenge = null; //Xoa challenge dang nhap sau khi da verify`
-      await user.save();
-      console.log("Verify thanh cong cho", username);
+//     if (authResp && authResp.id) {
+//       //Cap nhat thong tin dang nhap
+//       user.lastLoginAt = new Date();
+//       user.loginCount += 1;
+//       user.challenge = null; //Xoa challenge dang nhap sau khi da verify`
+//       await user.save();
+//       console.log("Verify thanh cong cho", username);
 
-      const access_token = await createAccessToken({
-        id: user.id,
-        isAdmin: user.isAdmin,
-      });
-      const Refresh_token = await createRefreshToken({
-        id: user.id,
-        isAdmin: user.isAdmin,
-      });
-      console.log("access_token", access_token);
+//       const access_token = await createAccessToken({
+//         id: user.id,
+//         isAdmin: user.isAdmin,
+//       });
+//       const Refresh_token = await createRefreshToken({
+//         id: user.id,
+//         isAdmin: user.isAdmin,
+//       });
+//       console.log("access_token", access_token);
 
-      return {
-        status: "success",
-        Access_token: access_token,
-        Refresh_token: Refresh_token,
-      };
-    }
-  } catch (error) {
-    console.error("Error in VerifyLogin:", error);
-    throw error;
-  }
-};
+//       return {
+//         status: "success",
+//         Access_token: access_token,
+//         Refresh_token: Refresh_token,
+//         userId: user._id,
+//       };
+//     }
+//   } catch (error) {
+//     console.error("Error in VerifyLogin:", error);
+//     throw error;
+//   }
+// };
 
-// Xác thực bước 2 cho 2FA (sau khi đã xác thực mật khẩu)
-const loginVerifyTwoFactor = async ({ username, authResp }) => {
-  try {
-    const user = await User.findOne({ username });
-    await ensureCredentialArray(user);
-    if (!user) {
-      throw new Error("User khong ton tai");
-    }
+// // Xác thực bước 2 cho 2FA (sau khi đã xác thực mật khẩu)
+// const loginVerifyTwoFactor = async ({ username, authResp }) => {
+//   try {
+//     const user = await User.findOne({ username });
+//     await ensureCredentialArray(user);
+//     if (!user) {
+//       throw new Error("User khong ton tai");
+//     }
 
-    // Kiểm tra user có bật 2FA không
-    if (!user.isTwoFactorAuth) {
-      throw new Error("User chua bat 2FA");
-    }
+//     // Kiểm tra user có bật 2FA không
+//     if (!user.isTwoFactorAuth) {
+//       throw new Error("User chua bat 2FA");
+//     }
 
-    if (authResp && authResp.id) {
-      //Cap nhat thong tin dang nhap
-      user.lastLoginAt = new Date();
-      user.loginCount += 1;
-      user.challenge = null; //Xoa challenge dang nhap sau khi da verify`
-      await user.save();
-      console.log("Verify 2FA thanh cong cho", username);
+//     if (authResp && authResp.id) {
+//       //Cap nhat thong tin dang nhap
+//       user.lastLoginAt = new Date();
+//       user.loginCount += 1;
+//       user.challenge = null; //Xoa challenge dang nhap sau khi da verify`
+//       await user.save();
+//       console.log("Verify 2FA thanh cong cho", username);
 
-      const access_token = await createAccessToken({
-        id: user.id,
-        isAdmin: user.isAdmin,
-      });
-      const Refresh_token = await createRefreshToken({
-        id: user.id,
-        isAdmin: user.isAdmin,
-      });
-      console.log("access_token", access_token);
+//       const access_token = await createAccessToken({
+//         id: user.id,
+//         isAdmin: user.isAdmin,
+//       });
+//       const Refresh_token = await createRefreshToken({
+//         id: user.id,
+//         isAdmin: user.isAdmin,
+//       });
+//       console.log("access_token", access_token);
 
-      return {
-        status: "success",
-        Access_token: access_token,
-        Refresh_token: Refresh_token,
-      };
-    }
-  } catch (error) {
-    console.error("Error in VerifyLoginTwoFactor:", error);
-    throw error;
-  }
-};
+//       return {
+//         status: "success",
+//         Access_token: access_token,
+//         Refresh_token: Refresh_token,
+//         userId: user._id,
+//       };
+//     }
+//   } catch (error) {
+//     console.error("Error in VerifyLoginTwoFactor:", error);
+//     throw error;
+//   }
+// };
 
-const getWebauthnCredentials = async (userId) => {
-  try {
-    const user = await User.findById(userId);
-    await ensureCredentialArray(user);
+// const getWebauthnCredentials = async (userId) => {
+//   try {
+//     const user = await User.findById(userId);
+//     await ensureCredentialArray(user);
 
-    if (!user) {
-      return {
-        success: false,
-        message: "Không tìm thấy người dùng",
-      };
-    }
+//     if (!user) {
+//       return {
+//         success: false,
+//         message: "Không tìm thấy người dùng",
+//       };
+//     }
 
-    return {
-      success: true,
-      data: user.credentials || [],
-    };
-  } catch (error) {
-    throw error;
-  }
-};
+//     return {
+//       success: true,
+//       data: user.credentials || [],
+//     };
+//   } catch (error) {
+//     throw error;
+//   }
+// };
 
-const removeWebauthnCredential = async ({ userId, credentialId }) => {
-  try {
-    const user = await User.findById(userId);
-    await ensureCredentialArray(user);
+// const removeWebauthnCredential = async ({ userId, credentialId }) => {
+//   try {
+//     const user = await User.findById(userId);
+//     await ensureCredentialArray(user);
 
-    if (!user) {
-      return {
-        success: false,
-        message: "Không tìm thấy người dùng",
-      };
-    }
+//     if (!user) {
+//       return {
+//         success: false,
+//         message: "Không tìm thấy người dùng",
+//       };
+//     }
 
-    user.credentials = (user.credentials || []).filter(
-      (credential) => credential.credentialId !== credentialId
-    );
-    await user.save();
+//     user.credentials = (user.credentials || []).filter(
+//       (credential) => credential.credentialId !== credentialId
+//     );
+//     await user.save();
 
-    return {
-      success: true,
-      data: user.credentials,
-    };
-  } catch (error) {
-    throw error;
-  }
-};
+//     return {
+//       success: true,
+//       data: user.credentials,
+//     };
+//   } catch (error) {
+//     throw error;
+//   }
+// };
 
-const renameWebauthnCredential = async ({ userId, credentialId, name }) => {
-  try {
-    const user = await User.findById(userId);
-    await ensureCredentialArray(user);
+// const renameWebauthnCredential = async ({ userId, credentialId, name }) => {
+//   try {
+//     const user = await User.findById(userId);
+//     await ensureCredentialArray(user);
 
-    if (!user) {
-      return {
-        success: false,
-        message: "Không tìm thấy người dùng",
-      };
-    }
+//     if (!user) {
+//       return {
+//         success: false,
+//         message: "Không tìm thấy người dùng",
+//       };
+//     }
 
-    const credential = (user.credentials || []).find(
-      (item) => item.credentialId === credentialId
-    );
+//     const credential = (user.credentials || []).find(
+//       (item) => item.credentialId === credentialId
+//     );
 
-    if (!credential) {
-      return {
-        success: false,
-        message: "Không tìm thấy thiết bị",
-      };
-    }
+//     if (!credential) {
+//       return {
+//         success: false,
+//         message: "Không tìm thấy thiết bị",
+//       };
+//     }
 
-    credential.name = name;
-    await user.save();
+//     credential.name = name;
+//     await user.save();
 
-    return {
-      success: true,
-      data: user.credentials,
-    };
-  } catch (error) {
-    throw error;
-  }
-};
+//     return {
+//       success: true,
+//       data: user.credentials,
+//     };
+//   } catch (error) {
+//     throw error;
+//   }
+// };
 
 const updateUser = async ({ id, data }) => {
   try {
@@ -636,18 +648,10 @@ const getUser = async (id) => {
 
 module.exports = {
   createUser,
-  checkUsername,
+ 
   signinUser,
-  registOption,
-  addRegister,
-  addVerify,
-  registVerify,
-  loginOption,
-  loginVerify,
-  loginVerifyTwoFactor,
-  getWebauthnCredentials,
-  removeWebauthnCredential,
-  renameWebauthnCredential,
+
+
   updateUser,
   deleteUser,
   getAllUser,

@@ -19,6 +19,7 @@ const loginLimiter = rateLimit({
 });
 
 router.post("/sign-up", UserController.createUser);
+router.post("/google-login", UserController.googleLogin);
 router.post("/sign-in", loginLimiter,UserController.signinUser);
 router.post("/check-username", UserController.checkUsername);
 router.post("/register/option", UserController.registOption);

@@ -11,12 +11,13 @@ const app = express();
 const port = process.env.PORT;
 app.use(bodyParser.json());
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: "http://localhost:5173", // frontend origin
-    credentials: true, // cho phép gửi cookie
-  })
-);
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:3000"
+  ],
+  credentials: true
+}));
 routes(app);
 
 app.get("/", (req, res) => {

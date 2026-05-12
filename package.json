@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.2.2",
+    "axios": "^1.14.0",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.0",
     "cookie-parser": "^1.4.7",

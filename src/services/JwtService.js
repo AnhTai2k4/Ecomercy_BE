@@ -26,17 +26,19 @@ const refreshTokenService = (token) => {
         });
       }
 
-      const { id, isAdmin } = user;
-      const Access_token = await createAccessToken({ id, isAdmin });
+      const { id, name,username,  email, isAdmin ,phone} = user;
+      const Access_token = await createAccessToken({ id, isAdmin,username,  email, isAdmin,phone });
 
       resolve({
         success: true,
         message: "Create token hoàn thành",
-        data: Access_token,
+        data: {
+          access_token: Access_token,
+          user: { id, name, email,username, isAdmin },
+        },
       });
     });
   });
 };
-
 
 module.exports = { createAccessToken, createRefreshToken, refreshTokenService };

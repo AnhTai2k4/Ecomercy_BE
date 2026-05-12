@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: false },
     username: { type: String, required: true, unique: true },
     password: { type: String, required: false },
+    email: { type: String, required: false },
     isAdmin: { type: Boolean, default: false, required: false },
     phone: { type: String, required: false },
     accessToken: { type: String, required: false },
@@ -30,6 +31,8 @@ const userSchema = new mongoose.Schema(
     // Chống brute-force / lock tài khoản
     failedLoginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date, default: null },
+    // Danh sách khóa học đã mua
+    courseBuyed: [{ type: mongoose.Schema.Types.ObjectId, ref: "Course" }],
   },
   {
     timestamps: true,
